@@ -8,11 +8,9 @@ class QuadTree<T>(private val bucketSize: Int, private val quadTreePointTC: Quad
         root.insert(point)
     }
 
-    fun queryRange(north: Double, west: Double, south: Double, east: Double): List<T> {
-        val points: MutableList<T> = ArrayList()
-        root.queryRange(QuadTreeRect(north, west, south, east), points)
-        return points
-    }
+    fun queryRange(north: Double, west: Double, south: Double, east: Double): List<T> =
+        root.queryRange(QuadTreeRect(north, west, south, east), emptyList())
+
 
     fun clear() {
         root = createRootNode(bucketSize)

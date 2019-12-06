@@ -5,7 +5,6 @@ import android.os.AsyncTask
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.GoogleMap.OnCameraIdleListener
 import com.google.android.gms.maps.model.LatLngBounds
-import java.util.*
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import kotlin.math.pow
@@ -31,12 +30,12 @@ class ClusterManager<T>(
                 onClusterClicked = onClusterClicked,
                 onClusterItemClicked = onClusterItemClicked
         ),
-        private var mMinClusterSize: Int = DEFAULT_MIN_CLUSTER_SIZE
+        private var minClusterSize: Int = DEFAULT_MIN_CLUSTER_SIZE
 ) : OnCameraIdleListener {
 
-    private val mExecutor: Executor = Executors.newSingleThreadExecutor()
-    private var mQuadTreeTask: AsyncTask<*, *, *>? = null
-    private var mClusterTask: AsyncTask<*, *, *>? = null
+    private val executor: Executor = Executors.newSingleThreadExecutor()
+    private var quadTreeTask: AsyncTask<*, *, *>? = null
+    private var clusterTask: AsyncTask<*, *, *>? = null
 
 
     /**
@@ -54,21 +53,21 @@ class ClusterManager<T>(
     }
 
     private fun buildQuadTree(clusterItems: List<T>) {
-        mQuadTreeTask?.cancel(true)
+        quadTreeTask?.cancel(true)
 
-        mQuadTreeTask = QuadTreeTask(clusterItems).executeOnExecutor(mExecutor)
+        quadTreeTask = QuadTreeTask(clusterItems).executeOnExecutor(executor)
     }
 
     private fun cluster() {
-        mClusterTask?.cancel(true)
-        mClusterTask = ClusterTask(
+        clusterTask?.cancel(true)
+        clusterTask = ClusterTask(
                 googleMap.projection.visibleRegion.latLngBounds,
                 googleMap.cameraPosition.zoom
-        ).executeOnExecutor(mExecutor)
+        ).executeOnExecutor(executor)
     }
 
     private fun getClusters(latLngBounds: LatLngBounds, zoomLevel: Float): List<Cluster<T>> {
-        val clusters: MutableList<Cluster<T>> = ArrayList()
+        val clusters: MutableList<Cluster<T>> = mutableListOf()
         val tileCount = (2.0.pow(zoomLevel.toDouble()) * 2).toLong()
         val startLatitude = latLngBounds.northeast.latitude
         val endLatitude = latLngBounds.southwest.latitude
@@ -108,13 +107,11 @@ class ClusterManager<T>(
                     val points = quadTree.queryRange(north, west, south, east)
                     if (points.isEmpty()) continue
 
-                    if (points.size >= mMinClusterSize) {
-                        var totalLatitude = 0.0
-                        var totalLongitude = 0.0
-                        for (point in points) {
-                            totalLatitude += point.latitude
-                            totalLongitude += point.longitude
+                    if (points.size >= minClusterSize) {
+                        val (totalLatitude, totalLongitude) = points.fold(0.0 to 0.0){acc, it ->
+                            acc.first + it.latitude to acc.second + it.longitude
                         }
+
                         val latitude = totalLatitude / points.size
                         val longitude = totalLongitude / points.size
                         clusters.add(Cluster(latitude, longitude, points, north, west, south, east))
@@ -128,27 +125,27 @@ class ClusterManager<T>(
         }
     }
 
-    private inner class QuadTreeTask(private val mClusterItems: List<T>) : AsyncTask<Unit?, Unit, Unit>() {
+    private inner class QuadTreeTask(private val clusterItems: List<T>) : AsyncTask<Unit?, Unit, Unit>() {
 
         override fun doInBackground(vararg params: Unit?) {
             quadTree.clear()
-            mClusterItems.forEach(quadTree::insert)
+            clusterItems.forEach(quadTree::insert)
         }
 
         override fun onPostExecute(aUnit: Unit?) {
             cluster()
-            mQuadTreeTask = null
+            quadTreeTask = null
         }
 
     }
 
-    private inner class ClusterTask(private val mLatLngBounds: LatLngBounds, private val mZoomLevel: Float) : AsyncTask<Unit?, Unit?, List<Cluster<T>>>() {
+    private inner class ClusterTask(private val latLngBounds: LatLngBounds, private val zoomLevel: Float) : AsyncTask<Unit?, Unit?, List<Cluster<T>>>() {
         override fun doInBackground(vararg params: Unit?): List<Cluster<T>> =
-                getClusters(mLatLngBounds, mZoomLevel)
+                getClusters(latLngBounds, zoomLevel)
 
         override fun onPostExecute(clusters: List<Cluster<T>>) {
             renderer.render(clusters)
-            mClusterTask = null
+            clusterTask = null
         }
 
     }

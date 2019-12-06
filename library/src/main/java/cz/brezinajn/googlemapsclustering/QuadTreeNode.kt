@@ -41,23 +41,23 @@ internal class QuadTreeNode<T>(
 
     }
 
-    fun queryRange(range: QuadTreeRect, pointsInRange: MutableList<T>) { // Automatically abort if the range does not intersect this quad.
+    fun queryRange(range: QuadTreeRect, pointsInRange: List<T>): List<T> { // Automatically abort if the range does not intersect this quad.
         quadTreePointTC.run {
-            if (!bounds.intersects(range)) return
+            if (!bounds.intersects(range)) return emptyList()
 
             // Check objects at this quad level.
-            points.forEach { point ->
-                if (range.contains(point.latitude, point.longitude))
-                    pointsInRange.add(point)
-            }
+            val inRange = points.filter { range.contains(it.latitude, it.longitude) }
+
             // Terminate here, if there are no children.
-            if (northWest == null) return
+            if (northWest == null) return inRange
 
             // Otherwise, add the points from the children.
-            northWest?.queryRange(range, pointsInRange)
-            northEast?.queryRange(range, pointsInRange)
-            southWest?.queryRange(range, pointsInRange)
-            southEast?.queryRange(range, pointsInRange)
+            val nwPoints = northWest?.queryRange(range, pointsInRange).orEmpty()
+            val nePoints = northEast?.queryRange(range, pointsInRange).orEmpty()
+            val swPoints = southWest?.queryRange(range, pointsInRange).orEmpty()
+            val sePoints = southEast?.queryRange(range, pointsInRange).orEmpty()
+
+            return inRange + nwPoints + nePoints + swPoints + sePoints
         }
     }
 

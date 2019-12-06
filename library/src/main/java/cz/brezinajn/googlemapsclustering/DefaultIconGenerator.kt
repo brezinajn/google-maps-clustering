@@ -22,25 +22,14 @@ class DefaultIconGenerator<T>(
         private val context: Context,
         private val iconStyle: IconStyle = createDefaultIconStyle(context)
 ) : IconGenerator<T> {
-    private var clusterItemIcon: BitmapDescriptor? = null
+    private var clusterItemIcon: BitmapDescriptor? = null //todo support multiple icons
     private val clusterIcons = SparseArray<BitmapDescriptor>()
-    /**
-     * Sets a custom icon style used to generate marker icons.
-     *
-     * @param iconStyle the custom icon style used to generate marker icons
-     */
-//    fun setIconStyle(iconStyle: IconStyle) {
-//        mIconStyle = iconStyle
-//    }
+
 
     override fun getClusterIcon(cluster: Cluster<T>): BitmapDescriptor {
         val clusterBucket = getClusterIconBucket(cluster)
-        var clusterIcon = clusterIcons[clusterBucket]
-        if (clusterIcon == null) {
-            clusterIcon = createClusterIcon(clusterBucket)
-            clusterIcons.put(clusterBucket, clusterIcon)
-        }
-        return clusterIcon
+        return clusterIcons.getOrPut(clusterBucket) {createClusterIcon(clusterBucket)}
+
     }
 
     override fun getClusterItemIcon(clusterItem: T): BitmapDescriptor {
@@ -112,4 +101,14 @@ class DefaultIconGenerator<T>(
 
 private fun createDefaultIconStyle(context: Context): IconStyle {
     return IconStyle.Builder(context).build()
+}
+
+
+fun <T>SparseArray<T>.getOrPut(index: Int, generator: ()->T): T{
+    val elem: T? = this[index]
+    if(elem != null) return elem
+
+    val generated = generator()
+    this.put(index, generated)
+    return generated
 }
