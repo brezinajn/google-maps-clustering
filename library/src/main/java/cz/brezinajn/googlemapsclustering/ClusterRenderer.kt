@@ -18,77 +18,53 @@ typealias Predicate<T> = (T) -> Boolean
 
 class ClusterRenderer<T>(
         context: Context,
-        private val mGoogleMap: GoogleMap,
-        private val mIconGenerator: IconGenerator<T> = DefaultIconGenerator(context),
+        private val googleMap: GoogleMap,
+        private val iconGenerator: IconGenerator<T> = DefaultIconGenerator(context),
         private val clusterItemTC: ClusterItem<T>,
         private val onClusterItemClicked: Predicate<T>? = null,
         private val onClusterClicked: Predicate<Cluster<T>>? = null
 ) : OnMarkerClickListener {
-    private val mClusters: MutableList<Cluster<T>> = ArrayList()
-    private val mMarkers: MutableMap<Cluster<T>, Marker> = HashMap()
+    private val clusters: MutableList<Cluster<T>> = mutableListOf()
+    private val markers: MutableMap<Cluster<T>, Marker> = HashMap() // mapOf?
 
-    //    private var mCallbacks: ClusterManager.Callbacks<T>? = null
     override fun onMarkerClick(marker: Marker): Boolean {
-        val markerTag = marker.tag
-        if (markerTag is Cluster<*>) {
-            val cluster = marker.tag as Cluster<T>
-            val clusterItems = cluster.items
-            return if (clusterItems.size > 1) {
-                onClusterClicked?.invoke(cluster) ?: false
-            } else {
-                onClusterItemClicked?.invoke(clusterItems.first()) ?: false
-            }
+        val cluster = marker.tag as? Cluster<T> ?: return false
+        return if (cluster.items.size > 1) {
+            onClusterClicked?.invoke(cluster) ?: false
+        } else {
+            onClusterItemClicked?.invoke(cluster.items.first()) ?: false
         }
-        return false
     }
 
-//    fun setCallbacks(listener: ClusterManager.Callbacks<T>?) {
-//        mCallbacks = listener
-//    }
-
-//    fun setIconGenerator(iconGenerator: IconGenerator<T>) {
-//        mIconGenerator = iconGenerator
-//    }
 
     fun render(clusters: List<Cluster<T>>) {
-        val clustersToAdd: MutableList<Cluster<T>> = ArrayList()
-        val clustersToRemove: MutableList<Cluster<T>> = ArrayList()
-        for (cluster in clusters) {
-            if (!mMarkers.containsKey(cluster)) {
-                clustersToAdd.add(cluster)
-            }
-        }
-        for (cluster in mMarkers.keys) {
-            if (!clusters.contains(cluster)) {
-                clustersToRemove.add(cluster)
-            }
-        }
-        mClusters.addAll(clustersToAdd)
-        mClusters.removeAll(clustersToRemove)
+        val clustersToAdd: List<Cluster<T>> = clusters.filterNot(markers::containsKey)
+        val clustersToRemove: List<Cluster<T>> = markers.keys.filterNot(clusters::contains)
+
+        this.clusters.addAll(clustersToAdd)
+        this.clusters.removeAll(clustersToRemove)
         // Remove the old clusters.
-        for (clusterToRemove in clustersToRemove) {
-            val markerToRemove = mMarkers[clusterToRemove]
+        clustersToRemove.forEach { clusterToRemove ->
+            val markerToRemove = markers[clusterToRemove]
             markerToRemove!!.zIndex = BACKGROUND_MARKER_Z_INDEX.toFloat()
-            val parentCluster = findParentCluster(mClusters, clusterToRemove.latitude,
-                    clusterToRemove.longitude)
+            val parentCluster = findParentCluster(this.clusters, clusterToRemove.latitude, clusterToRemove.longitude)
             if (parentCluster != null) {
-                animateMarkerToLocation(markerToRemove, LatLng(parentCluster.latitude,
-                        parentCluster.longitude), true)
+                animateMarkerToLocation(markerToRemove, LatLng(parentCluster.latitude, parentCluster.longitude), true)
             } else {
                 markerToRemove.remove()
             }
-            mMarkers.remove(clusterToRemove)
+            markers.remove(clusterToRemove)
         }
         // Add the new clusters.
-        for (clusterToAdd in clustersToAdd) {
-            var markerToAdd: Marker
+        clustersToAdd.forEach { clusterToAdd ->
             val markerIcon = getMarkerIcon(clusterToAdd)
             val markerTitle = getMarkerTitle(clusterToAdd)
             val markerSnippet = getMarkerSnippet(clusterToAdd)
             val parentCluster: Cluster<*>? = findParentCluster(clustersToRemove, clusterToAdd.latitude,
                     clusterToAdd.longitude)
+            val markerToAdd: Marker
             if (parentCluster != null) {
-                markerToAdd = mGoogleMap.addMarker(MarkerOptions()
+                markerToAdd = googleMap.addMarker(MarkerOptions()
                         .position(LatLng(parentCluster.latitude, parentCluster.longitude))
                         .icon(markerIcon)
                         .title(markerTitle)
@@ -97,7 +73,7 @@ class ClusterRenderer<T>(
                 animateMarkerToLocation(markerToAdd,
                         LatLng(clusterToAdd.latitude, clusterToAdd.longitude), false)
             } else {
-                markerToAdd = mGoogleMap.addMarker(MarkerOptions()
+                markerToAdd = googleMap.addMarker(MarkerOptions()
                         .position(LatLng(clusterToAdd.latitude, clusterToAdd.longitude))
                         .icon(markerIcon)
                         .title(markerTitle)
@@ -107,57 +83,34 @@ class ClusterRenderer<T>(
                 animateMarkerAppearance(markerToAdd)
             }
             markerToAdd.tag = clusterToAdd
-            mMarkers[clusterToAdd] = markerToAdd
+            markers[clusterToAdd] = markerToAdd
         }
     }
 
-    private fun getMarkerIcon(cluster: Cluster<T>): BitmapDescriptor {
-        val clusterIcon: BitmapDescriptor
-        val clusterItems = cluster.items
-        clusterIcon = if (clusterItems.size > 1) {
-            mIconGenerator.getClusterIcon(cluster)
-        } else {
-            mIconGenerator.getClusterItemIcon(clusterItems[0])
-        }
-        return clusterIcon
+    private fun getMarkerIcon(cluster: Cluster<T>): BitmapDescriptor =
+            if (cluster.items.size > 1) iconGenerator.getClusterIcon(cluster)
+            else iconGenerator.getClusterItemIcon(cluster.items[0])
+
+    private fun getMarkerTitle(cluster: Cluster<T>): String? = clusterItemTC.run {
+        if (cluster.items.size > 1) null
+        else cluster.items[0].title
     }
 
-    private fun getMarkerTitle(cluster: Cluster<T>): String? {
-        clusterItemTC.run {
-            val clusterItems = cluster.items
-            return if (clusterItems.size > 1) {
-                null
-            } else {
-                clusterItems[0].title
-            }
-        }
-    }
 
-    private fun getMarkerSnippet(cluster: Cluster<T>): String? {
-        clusterItemTC.run {
-            val clusterItems = cluster.items
-            return if (clusterItems.size > 1) {
-                null
-            } else {
-                clusterItems[0].snippet
-            }
-        }
+    private fun getMarkerSnippet(cluster: Cluster<T>): String? = clusterItemTC.run {
+        if (cluster.items.size > 1) null
+        else cluster.items[0].snippet
+
     }
 
     private fun findParentCluster(clusters: List<Cluster<T>>,
-                                  latitude: Double, longitude: Double): Cluster<T>? {
-        for (cluster in clusters) {
-            if (cluster.contains(latitude, longitude)) {
-                return cluster
-            }
-        }
-        return null
-    }
+                                  latitude: Double, longitude: Double): Cluster<T>? =
+            clusters.find { it.contains(latitude, longitude) }
+
 
     private fun animateMarkerToLocation(marker: Marker, targetLocation: LatLng,
                                         removeAfter: Boolean) {
-        val objectAnimator = ObjectAnimator.ofObject(marker, "position",
-                LatLngTypeEvaluator(), targetLocation)
+        val objectAnimator = ObjectAnimator.ofObject(marker, "position", LatLngTypeEvaluator(), targetLocation)
         objectAnimator.interpolator = FastOutSlowInInterpolator()
         objectAnimator.addListener(object : AnimatorListenerAdapter() {
             override fun onAnimationEnd(animation: Animator) {
@@ -187,6 +140,6 @@ class ClusterRenderer<T>(
     }
 
     init {
-        mGoogleMap.setOnMarkerClickListener(this)
+        googleMap.setOnMarkerClickListener(this)
     }
 }

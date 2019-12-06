@@ -19,12 +19,11 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
  * and caches them for subsequent use. To customize the style of generated icons use
  */
 class DefaultIconGenerator<T>(
-        private val mContext: Context,
-        private val mIconStyle: IconStyle = createDefaultIconStyle(mContext)
+        private val context: Context,
+        private val iconStyle: IconStyle = createDefaultIconStyle(context)
 ) : IconGenerator<T> {
-    //    private val mIconStyle: IconStyle
-    private var mClusterItemIcon: BitmapDescriptor? = null
-    private val mClusterIcons = SparseArray<BitmapDescriptor>()
+    private var clusterItemIcon: BitmapDescriptor? = null
+    private val clusterIcons = SparseArray<BitmapDescriptor>()
     /**
      * Sets a custom icon style used to generate marker icons.
      *
@@ -36,29 +35,30 @@ class DefaultIconGenerator<T>(
 
     override fun getClusterIcon(cluster: Cluster<T>): BitmapDescriptor {
         val clusterBucket = getClusterIconBucket(cluster)
-        var clusterIcon = mClusterIcons[clusterBucket]
+        var clusterIcon = clusterIcons[clusterBucket]
         if (clusterIcon == null) {
             clusterIcon = createClusterIcon(clusterBucket)
-            mClusterIcons.put(clusterBucket, clusterIcon)
+            clusterIcons.put(clusterBucket, clusterIcon)
         }
         return clusterIcon
     }
 
     override fun getClusterItemIcon(clusterItem: T): BitmapDescriptor {
-        if (mClusterItemIcon == null) {
-            mClusterItemIcon = createClusterItemIcon()
+        val clusterIcon = clusterItemIcon ?: createClusterItemIcon()
+        if (clusterItemIcon == null) {
+            clusterItemIcon = clusterIcon
         }
-        return mClusterItemIcon!!
+        return clusterIcon
     }
 
 
     private fun createClusterIcon(clusterBucket: Int): BitmapDescriptor {
-        @SuppressLint("InflateParams") val clusterIconView = LayoutInflater.from(mContext)
+        @SuppressLint("InflateParams") val clusterIconView = LayoutInflater.from(context)
                 .inflate(R.layout.map_cluster_icon, null) as TextView
         clusterIconView.background = createClusterBackground()
-        clusterIconView.setTextColor(mIconStyle.clusterTextColor)
+        clusterIconView.setTextColor(iconStyle.clusterTextColor)
         clusterIconView.setTextSize(TypedValue.COMPLEX_UNIT_PX,
-                mIconStyle.clusterTextSize.toFloat())
+                iconStyle.clusterTextSize.toFloat())
         clusterIconView.text = getClusterIconText(clusterBucket)
         clusterIconView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         clusterIconView.layout(0, 0, clusterIconView.measuredWidth,
@@ -73,14 +73,14 @@ class DefaultIconGenerator<T>(
     private fun createClusterBackground(): Drawable {
         val gradientDrawable = GradientDrawable()
         gradientDrawable.shape = GradientDrawable.OVAL
-        gradientDrawable.setColor(mIconStyle.clusterBackgroundColor)
-        gradientDrawable.setStroke(mIconStyle.clusterStrokeWidth,
-                mIconStyle.clusterStrokeColor)
+        gradientDrawable.setColor(iconStyle.clusterBackgroundColor)
+        gradientDrawable.setStroke(iconStyle.clusterStrokeWidth,
+                iconStyle.clusterStrokeColor)
         return gradientDrawable
     }
 
     private fun createClusterItemIcon(): BitmapDescriptor {
-        return BitmapDescriptorFactory.fromResource(mIconStyle.clusterIconResId)
+        return BitmapDescriptorFactory.fromResource(iconStyle.clusterIconResId)
     }
 
     private fun getClusterIconBucket(cluster: Cluster<T>): Int {

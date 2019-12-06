@@ -19,14 +19,14 @@ import kotlin.math.pow
 </T> */
 class ClusterManager<T>(
         context: Context,
-        private val mGoogleMap: GoogleMap,
+        private val googleMap: GoogleMap,
         private val clusterItemTC: ClusterItem<T>,
         onClusterClicked: Predicate<Cluster<T>>? = null,
         onClusterItemClicked: Predicate<T>? = null,
-        private val mQuadTree: QuadTree<T> = QuadTree(QUAD_TREE_BUCKET_CAPACITY, clusterItemTC),
-        private val mRenderer: ClusterRenderer<T> = ClusterRenderer(
+        private val quadTree: QuadTree<T> = QuadTree(QUAD_TREE_BUCKET_CAPACITY, clusterItemTC),
+        private val renderer: ClusterRenderer<T> = ClusterRenderer(
                 context = context,
-                mGoogleMap = mGoogleMap,
+                googleMap = googleMap,
                 clusterItemTC = clusterItemTC,
                 onClusterClicked = onClusterClicked,
                 onClusterItemClicked = onClusterItemClicked
@@ -54,16 +54,17 @@ class ClusterManager<T>(
     }
 
     private fun buildQuadTree(clusterItems: List<T>) {
-        if (mQuadTreeTask != null) {
-            mQuadTreeTask!!.cancel(true)
-        }
+        mQuadTreeTask?.cancel(true)
+
         mQuadTreeTask = QuadTreeTask(clusterItems).executeOnExecutor(mExecutor)
     }
 
     private fun cluster() {
         mClusterTask?.cancel(true)
-        mClusterTask = ClusterTask(mGoogleMap.projection.visibleRegion.latLngBounds,
-                mGoogleMap.cameraPosition.zoom).executeOnExecutor(mExecutor)
+        mClusterTask = ClusterTask(
+                googleMap.projection.visibleRegion.latLngBounds,
+                googleMap.cameraPosition.zoom
+        ).executeOnExecutor(mExecutor)
     }
 
     private fun getClusters(latLngBounds: LatLngBounds, zoomLevel: Float): List<Cluster<T>> {
@@ -98,16 +99,15 @@ class ClusterManager<T>(
             val startY = ((90.0 - startLatitude) / stepLatitude).toLong()
             val endX = ((endLongitude + 180.0) / stepLongitude).toLong() + 1
             val endY = ((90.0 - endLatitude) / stepLatitude).toLong() + 1
-            for (tileX in startX..endX) {
+            for (tileX in startX..endX) { // todo flatten
                 for (tileY in startY..endY) {
                     val north = 90.0 - tileY * stepLatitude
                     val west = tileX * stepLongitude - 180.0
                     val south = north - stepLatitude
                     val east = west + stepLongitude
-                    val points = mQuadTree.queryRange(north, west, south, east)
-                    if (points.isEmpty()) {
-                        continue
-                    }
+                    val points = quadTree.queryRange(north, west, south, east)
+                    if (points.isEmpty()) continue
+
                     if (points.size >= mMinClusterSize) {
                         var totalLatitude = 0.0
                         var totalLongitude = 0.0
@@ -117,11 +117,10 @@ class ClusterManager<T>(
                         }
                         val latitude = totalLatitude / points.size
                         val longitude = totalLongitude / points.size
-                        clusters.add(Cluster(latitude, longitude,
-                                points, north, west, south, east))
+                        clusters.add(Cluster(latitude, longitude, points, north, west, south, east))
                     } else {
-                        for (point in points) {
-                            clusters.add(Cluster(point.latitude, point.longitude, listOf(point), north, west, south, east))
+                        points.mapTo(clusters) {
+                            Cluster(it.latitude, it.longitude, listOf(it), north, west, south, east)
                         }
                     }
                 }
@@ -132,8 +131,8 @@ class ClusterManager<T>(
     private inner class QuadTreeTask(private val mClusterItems: List<T>) : AsyncTask<Unit?, Unit, Unit>() {
 
         override fun doInBackground(vararg params: Unit?) {
-            mQuadTree.clear()
-            mClusterItems.forEach(mQuadTree::insert)
+            quadTree.clear()
+            mClusterItems.forEach(quadTree::insert)
         }
 
         override fun onPostExecute(aUnit: Unit?) {
@@ -143,13 +142,12 @@ class ClusterManager<T>(
 
     }
 
-    private inner class ClusterTask(private val mLatLngBounds: LatLngBounds, private val mZoomLevel: Float) : AsyncTask<Void?, Void?, List<Cluster<T>>>() {
-        protected override fun doInBackground(vararg params: Void?): List<Cluster<T>> {
-            return getClusters(mLatLngBounds, mZoomLevel)
-        }
+    private inner class ClusterTask(private val mLatLngBounds: LatLngBounds, private val mZoomLevel: Float) : AsyncTask<Unit?, Unit?, List<Cluster<T>>>() {
+        override fun doInBackground(vararg params: Unit?): List<Cluster<T>> =
+                getClusters(mLatLngBounds, mZoomLevel)
 
         override fun onPostExecute(clusters: List<Cluster<T>>) {
-            mRenderer.render(clusters)
+            renderer.render(clusters)
             mClusterTask = null
         }
 

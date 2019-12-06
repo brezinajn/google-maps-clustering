@@ -24,7 +24,7 @@ class MapsActivity : FragmentActivity(), OnMapReadyCallback {
         googleMap.setOnMapLoadedCallback { googleMap.animateCamera(CameraUpdateFactory.newLatLngBounds(NETHERLANDS, 0)) }
         val clusterManager = ClusterManager(
                         context = this,
-                        mGoogleMap = googleMap,
+                        googleMap = googleMap,
                         clusterItemTC = CITC,
                         onClusterItemClicked = {
                             Log.d(TAG, "onClusterItemClick")
