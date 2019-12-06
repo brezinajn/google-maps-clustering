@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest
-    package="com.sharewire.googlemapsclustering.sample"
+    package="cz.brezinajn.googlemapsclustering.sample"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
@@ -11,7 +11,7 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:name="com.sharewire.googlemapsclustering.sample.MapsActivity">
+            android:name="cz.brezinajn.googlemapsclustering.sample.MapsActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
